@@ -1,3 +1,10 @@
+export interface ChainTransaction {
+  chainId: string;
+  txHash: string;
+  status: string;
+  timestamp: string;
+}
+
 export interface SwapTransaction {
   id: string;
   timestamp: string;
@@ -12,10 +19,11 @@ export interface SwapTransaction {
   costBasisUSD: number;
   gasFeesUSD: number;
   effectiveRate: number;
-  txHash: string;
+  txHash: string; // Primary transaction hash (usually the first one)
   status: 'pending' | 'completed' | 'failed';
   error?: string;
   route?: any;
+  chainTransactions?: ChainTransaction[]; // All intermediate transaction hashes
 }
 
 export interface PriceData {
@@ -32,18 +40,20 @@ export interface WalletConfig {
 }
 
 export interface SwapConfig {
-  minSwapAmount: string;
-  maxSwapAmount: string;
+  minSwapAmountUSD: number;
+  maxSwapAmountUSD: number;
   swapPercentage: number;
   keepReserve: string;
   maxSlippage: number;
   minEffectiveRate: number;
   schedule: string;
   dryRun: boolean;
+  timeoutMinutes: number;
   sourceChainId: string;
   destChainId: string;
   sourceAsset: string;
   destAsset: string;
+  destAddress?: string;
 }
 
 export interface NotificationConfig {

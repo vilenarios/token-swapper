@@ -72,8 +72,8 @@ export class NotificationService {
       });
 
       logger.debug('Discord notification sent');
-    } catch (error) {
-      logger.error('Failed to send Discord notification:', error);
+    } catch (error: any) {
+      logger.error(`Failed to send Discord notification: ${error.message || error}`);
     }
   }
 
@@ -105,8 +105,8 @@ export class NotificationService {
       });
 
       logger.debug('Telegram notification sent');
-    } catch (error) {
-      logger.error('Failed to send Telegram notification:', error);
+    } catch (error: any) {
+      logger.error(`Failed to send Telegram notification: ${error.message || error}`);
     }
   }
 

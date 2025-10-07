@@ -32,8 +32,8 @@ export class PriceService {
       }
 
       return null;
-    } catch (error) {
-      logger.error(`Failed to get price for ${symbol}:`, error);
+    } catch (error: any) {
+      logger.error(`Failed to get price for ${symbol}: ${error.message || error}`);
       return null;
     }
   }
@@ -92,11 +92,9 @@ export class PriceService {
         vs_currencies: 'usd',
       };
 
-      if (config.price.coingeckoApiKey) {
-        params['x_cg_pro_api_key'] = config.price.coingeckoApiKey;
-      }
-
+      logger.debug(`Fetching price from CoinGecko: ${url}?${new URLSearchParams(params).toString()}`);
       const response = await axios.get(url, { params });
+      logger.debug(`CoinGecko response:`, response.data);
       const price = response.data[coinId]?.usd;
 
       if (!price) {
@@ -117,6 +115,7 @@ export class PriceService {
         logger.warn('CoinGecko rate limit hit, using fallback price source');
         return this.fetchPriceFromBackup(symbol);
       }
+      logger.error(`CoinGecko API error for ${symbol}: Status ${error.response?.status}, Message: ${error.response?.data?.status?.error_message || error.message}`);
       throw error;
     }
   }
@@ -147,8 +146,8 @@ export class PriceService {
         timestamp: new Date().toISOString(),
         source: 'coinpaprika',
       };
-    } catch (error) {
-      logger.error(`Failed to fetch backup price for ${symbol}:`, error);
+    } catch (error: any) {
+      logger.error(`Failed to fetch backup price for ${symbol}: ${error.message || error}`);
       return null;
     }
   }
@@ -207,8 +206,8 @@ export class PriceService {
 
       const gasAmount = parseFloat(gasUsed) / Math.pow(10, 6);
       return gasAmount * price.price;
-    } catch (error) {
-      logger.error('Failed to calculate gas price in USD:', error);
+    } catch (error: any) {
+      logger.error(`Failed to calculate gas price in USD: ${error.message || error}`);
       return 0;
     }
   }

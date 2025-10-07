@@ -126,7 +126,8 @@ class KyveSwapperBot {
       console.log('======================');
       console.log('\nWallet Addresses:');
       console.log(`  KYVE: ${status.walletAddresses.kyve}`);
-      console.log(`  Noble: ${status.walletAddresses.noble}`);
+      console.log(`  Ethereum L1: ${status.walletAddresses.ethereum}`);
+      console.log(`  Base L2: ${status.walletAddresses.base}`);
       console.log('\nBalances:');
       console.log(`  KYVE: ${status.balances.kyve}`);
       console.log(`  USDC: ${status.balances.usdc}`);
@@ -136,10 +137,14 @@ class KyveSwapperBot {
       console.log(`  Total Volume (USD): $${status.statistics.totalVolumeUSD.toFixed(2)}`);
       console.log(`  Average Rate: ${status.statistics.averageRate.toFixed(6)}`);
       console.log('\nConfiguration:');
-      console.log(`  Min Swap Amount: ${status.config.minSwapAmount} KYVE`);
+      console.log(`  Min Swap Amount: $${status.config.minSwapAmountUSD}`);
+      console.log(`  Max Swap Amount: $${status.config.maxSwapAmountUSD}`);
       console.log(`  Max Slippage: ${status.config.maxSlippage * 100}%`);
       console.log(`  Schedule: ${status.config.schedule}`);
+      console.log(`  Timeout: ${status.config.timeoutMinutes} minutes`);
       console.log(`  Dry Run: ${status.config.dryRun}`);
+      console.log(`  USDC Destination: ${status.config.destination}`);
+      console.log(`  Destination Address: ${status.config.destinationAddress}`);
 
       process.exit(0);
     } catch (error) {

@@ -4,62 +4,81 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an automated bot for swapping KYVE tokens to USDC using the Skip Go API. The bot tracks cost basis in USD, maintains transaction logs in both JSON and CSV formats for accounting purposes, and includes comprehensive price protection mechanisms.
+Automated bot for swapping KYVE tokens to USDC using Skip Go API. Features cost basis tracking, transaction logging in JSON/CSV formats, and comprehensive price protection mechanisms.
 
 ## Key Commands
 
 ```bash
-# Development
-npm run dev          # Run in development mode with auto-reload
-npm start            # Run production build (requires npm run build first)
+# Development & Execution
+npm run dev          # Run with auto-reload (tsx watch)
+npm start            # Run production build
 npm start once       # Execute single swap and exit
-npm start status     # Check bot status and balances
+npm start status     # Display balances and statistics
 npm start export     # Export transaction history to CSV
 
-# Build & Testing
-npm run build        # Compile TypeScript to JavaScript
-npm run typecheck    # Type check without building
-npm run lint         # Run ESLint on TypeScript files
+# Build & Quality Checks
+npm run build        # Compile TypeScript (tsc)
+npm run typecheck    # Type check without emitting (tsc --noEmit)
+npm run lint         # Lint TypeScript files (eslint src/**/*.ts)
 npm test            # Run Jest tests
 
 # Utilities
-npm run export-csv   # Quick CSV export of transaction history
+npm run export-csv   # Quick CSV export (tsx src/utils/exportTransactions.ts)
 ```
 
 ## Architecture
 
-### Service Layer (`src/services/`)
-- **SwapOrchestrator**: Main coordinator that manages the swap workflow, determines swap amounts based on configuration rules, and enforces price protection
-- **WalletManager**: Handles Cosmos wallet operations, manages signing for both KYVE and Noble chains
-- **SkipSwapService**: Interfaces with Skip API for route finding and swap execution
-- **PriceService**: Fetches prices from CoinGecko with caching and fallback sources
-- **TransactionLogger**: Persists swaps to JSON and auto-exports to CSV with cost basis tracking
-- **NotificationService**: Sends alerts via Discord/Telegram webhooks
+### Core Services (`src/services/`)
 
-### Core Flow
-1. SwapOrchestrator checks balance and calculates swap amount based on:
-   - SWAP_PERCENTAGE (e.g., 50% of balance)
-   - KEEP_RESERVE_KYVE (amount to retain)
-   - MAX_SWAP_AMOUNT_KYVE (cap per transaction)
-   - MIN_SWAP_AMOUNT_KYVE (minimum threshold)
+**SwapOrchestrator** - Main coordinator managing the entire swap workflow:
+- Calculates swap amounts based on balance, percentage, reserve, and limits
+- Enforces price protection (MIN_EFFECTIVE_RATE)
+- Coordinates between all services
+- Manages transaction lifecycle
 
-2. Skip API provides route with slippage protection (MAX_SLIPPAGE_PERCENT)
-3. Bot validates effective rate against MIN_EFFECTIVE_RATE
-4. Transaction executes with automatic CSV logging including USD cost basis
+**WalletManager** - Cosmos wallet operations:
+- Manages signing for KYVE (kyve-1) and Noble (noble-1) chains
+- Handles mnemonic/private key initialization
+- Provides balance queries
 
-### Configuration (`src/config/index.ts`)
-Uses Zod for validation with environment variables. Skip API key is optional (uses free tier by default).
+**SkipSwapService** - Skip API integration:
+- Finds optimal swap routes
+- Executes swaps with slippage protection
+- Monitors transaction status
 
-### Entry Points (`src/index.ts`)
-- Default: Runs scheduled swaps using cron pattern
-- `once`: Single swap execution
-- `status`: Display balances and statistics
-- `export`: Export transaction history
+**PriceService** - Price data management:
+- Fetches from CoinGecko API
+- Implements caching to reduce API calls
+- Provides USD cost basis calculations
 
-## Important Configuration Notes
+**TransactionLogger** - Persistence layer:
+- Maintains JSON transaction history
+- Auto-exports to CSV with accounting fields
+- Tracks cumulative statistics
 
-- The bot swaps KYVE (on kyve-1) to USDC (on noble-1) via Skip API
-- Slippage protection is handled by Skip API's `slippageTolerancePercent`
-- MIN_EFFECTIVE_RATE provides a hard floor for swap rates
-- All transactions are automatically logged with cost basis for accounting
-- CSV export includes all relevant fields for tax/accounting purposes
+**NotificationService** - External alerts:
+- Discord webhook integration
+- Telegram bot notifications
+- Configurable alert levels
+
+### Swap Amount Determination
+
+The orchestrator calculates swap amounts through sequential rules:
+1. Get current KYVE balance
+2. Apply SWAP_PERCENTAGE (0-100%)
+3. Subtract KEEP_RESERVE_KYVE
+4. Cap at MAX_SWAP_AMOUNT_KYVE
+5. Validate against MIN_SWAP_AMOUNT_KYVE
+
+### Configuration
+
+Environment variables validated via Zod (`src/config/index.ts`):
+- Skip API key optional (free tier default)
+- Wallet via MNEMONIC or PRIVATE_KEY
+- Swap parameters: percentages, amounts, reserves
+- Price protection: slippage, minimum rates
+- Schedule: cron pattern for automation
+
+## Testing
+
+Uses Jest with ts-jest for TypeScript support. Test files should follow `*.test.ts` or `*.spec.ts` naming convention.

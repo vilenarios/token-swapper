@@ -7,9 +7,9 @@ import { logger } from '../utils/logger';
 export class WalletManager {
   private wallet: DirectSecp256k1HdWallet | DirectSecp256k1Wallet | null = null;
   private kyveClient: SigningStargateClient | null = null;
-  private nobleClient: SigningStargateClient | null = null;
   private kyveAddress: string = '';
-  private nobleAddress: string = '';
+  private ethereumAddress: string = '';
+  private baseAddress: string = '';
 
   async initialize(): Promise<void> {
     try {
@@ -29,34 +29,22 @@ export class WalletManager {
       const accounts = await this.wallet.getAccounts();
       this.kyveAddress = accounts[0].address;
 
-      const nobleWallet = walletConfig.mnemonic
-        ? await DirectSecp256k1HdWallet.fromMnemonic(walletConfig.mnemonic, {
-            prefix: 'noble',
-          })
-        : await DirectSecp256k1Wallet.fromKey(
-            Buffer.from(walletConfig.privateKey!, 'hex'),
-            'noble'
-          );
-
-      const nobleAccounts = await nobleWallet.getAccounts();
-      this.nobleAddress = nobleAccounts[0].address;
+      // Get Ethereum and Base addresses from config (user must provide their EVM addresses)
+      this.ethereumAddress = (config as any).ethereum.evmAddress;
+      this.baseAddress = (config as any).base.evmAddress;
 
       this.kyveClient = await SigningStargateClient.connectWithSigner(
         config.kyve.rpcUrl,
         this.wallet
       );
 
-      this.nobleClient = await SigningStargateClient.connectWithSigner(
-        config.noble.rpcUrl,
-        nobleWallet
-      );
-
       logger.info('Wallet manager initialized', {
         kyveAddress: this.kyveAddress,
-        nobleAddress: this.nobleAddress,
+        ethereumAddress: this.ethereumAddress,
+        baseAddress: this.baseAddress,
       });
-    } catch (error) {
-      logger.error('Failed to initialize wallet manager:', error);
+    } catch (error: any) {
+      logger.error(`Failed to initialize wallet manager: ${error.message || error}`);
       throw error;
     }
   }
@@ -70,32 +58,23 @@ export class WalletManager {
       const balance = await this.kyveClient.getBalance(this.kyveAddress, 'ukyve');
       logger.debug('KYVE balance:', balance);
       return balance;
-    } catch (error) {
-      logger.error('Failed to get KYVE balance:', error);
+    } catch (error: any) {
+      logger.error(`Failed to get KYVE balance: ${error.message || error}`);
       return null;
     }
   }
 
   async getUsdcBalance(): Promise<Coin | null> {
-    try {
-      if (!this.nobleClient) {
-        throw new Error('Noble client not initialized');
-      }
-
-      const balance = await this.nobleClient.getBalance(this.nobleAddress, 'uusdc');
-      logger.debug('USDC balance:', balance);
-      return balance;
-    } catch (error) {
-      logger.error('Failed to get USDC balance:', error);
-      return null;
-    }
+    // Note: USDC balance on Ethereum requires querying via EVM RPC
+    // This would need ethers.js or similar library
+    // For now, return null as we can't query EVM balances with CosmJS
+    logger.warn('USDC balance query not implemented for Ethereum - requires EVM library');
+    return null;
   }
 
   async getAllBalances(): Promise<{ kyve: Coin | null; usdc: Coin | null }> {
-    const [kyve, usdc] = await Promise.all([
-      this.getKyveBalance(),
-      this.getUsdcBalance(),
-    ]);
+    const kyve = await this.getKyveBalance();
+    const usdc = await this.getUsdcBalance();
 
     return { kyve, usdc };
   }
@@ -104,8 +83,8 @@ export class WalletManager {
     return this.kyveAddress;
   }
 
-  getNobleAddress(): string {
-    return this.nobleAddress;
+  getEthereumAddress(): string {
+    return this.ethereumAddress;
   }
 
   getWallet(): DirectSecp256k1HdWallet | DirectSecp256k1Wallet | null {
@@ -136,6 +115,10 @@ export class WalletManager {
       const privateKey = Buffer.from(walletConfig.privateKey!, 'hex');
       return await DirectSecp256k1Wallet.fromKey(privateKey, prefix);
     }
+  }
+
+  getBaseAddress(): string {
+    return this.baseAddress;
   }
 
   formatAmount(amount: string, decimals: number = 6): string {

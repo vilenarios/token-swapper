@@ -60,11 +60,21 @@ export class SwapOrchestrator {
         return null;
       }
 
-      const balanceFloat = parseFloat(balance.amount);
-      const minAmountMicro = parseFloat(swapConfig.minSwapAmount) * Math.pow(10, 6);
-      const maxAmountMicro = parseFloat(swapConfig.maxSwapAmount) * Math.pow(10, 6);
+      // Get current KYVE price to convert USD amounts
+      const prices = await this.priceService.getPrices(['kyve', 'usdc']);
+      const kyvePrice = prices.get('kyve')?.price || 0;
+
+      if (kyvePrice === 0) {
+        logger.error('Unable to fetch KYVE price, cannot determine swap amounts');
+        return null;
+      }
+
+      // Convert USD amounts to KYVE amounts (in micro units)
+      const minAmountMicro = (swapConfig.minSwapAmountUSD / kyvePrice) * Math.pow(10, 6);
+      const maxAmountMicro = (swapConfig.maxSwapAmountUSD / kyvePrice) * Math.pow(10, 6);
       const keepReserveMicro = parseFloat(swapConfig.keepReserve) * Math.pow(10, 6);
 
+      const balanceFloat = parseFloat(balance.amount);
       let swapAmount = balanceFloat;
 
       if (swapConfig.swapPercentage < 100) {
@@ -80,12 +90,11 @@ export class SwapOrchestrator {
       swapAmount = Math.min(swapAmount, maxAmountMicro);
 
       if (swapAmount < minAmountMicro) {
-        logger.info(`Swap amount ${swapAmount} below minimum ${minAmountMicro}, skipping swap`);
+        const swapAmountUSD = (swapAmount / Math.pow(10, 6)) * kyvePrice;
+        logger.info(`Swap amount $${swapAmountUSD.toFixed(2)} below minimum $${swapConfig.minSwapAmountUSD}, skipping swap`);
         return null;
       }
 
-      const prices = await this.priceService.getPrices(['kyve', 'usdc']);
-      const kyvePrice = prices.get('kyve')?.price || 0;
       const usdcPrice = prices.get('usdc')?.price || 1;
 
       const costBasisUSD = await this.priceService.calculateCostBasis(
@@ -93,15 +102,30 @@ export class SwapOrchestrator {
         'kyve'
       );
 
+      console.log('\n🔄 SWAP STARTED');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`📊 Swapping: ${this.walletManager.formatAmount(swapAmount.toString())} KYVE`);
+      console.log(`💰 Cost Basis: $${costBasisUSD.toFixed(2)}`);
+      console.log(`🎯 Destination: ${swapConfig.destAddress}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
       logSwap('Getting swap route', {
         amount: swapAmount.toString(),
         costBasis: costBasisUSD,
       });
 
+      console.log('🔍 Finding optimal route...');
       const route = await this.skipService.getRoute(swapAmount.toString());
+      console.log('✅ Route found!\n');
 
       const estimatedOut = parseFloat(route.amountOut);
       const effectiveRate = estimatedOut / swapAmount;
+
+      console.log('📈 Swap Details:');
+      console.log(`   From: ${this.walletManager.formatAmount(swapAmount.toString())} KYVE`);
+      console.log(`   To: ~${this.walletManager.formatAmount(estimatedOut.toString())} USDC`);
+      console.log(`   Rate: ${effectiveRate.toFixed(6)} USDC per KYVE`);
+      console.log(`   Slippage Tolerance: ${swapConfig.maxSlippage * 100}%\n`);
 
       logger.info('Swap analysis:', {
         swapAmount: this.walletManager.formatAmount(swapAmount.toString()),
@@ -124,7 +148,14 @@ export class SwapOrchestrator {
         dryRun: swapConfig.dryRun,
       });
 
+      console.log('🚀 Executing cross-chain swap...\n');
       const result = await this.skipService.executeSwap(route, swapConfig.dryRun);
+      console.log('\n✨ Swap execution completed!\n');
+
+      // Extract primary tx hash from chainTransactions or result
+      const primaryTxHash = result.chainTransactions && result.chainTransactions.length > 0
+        ? result.chainTransactions[0].txHash
+        : (result.txHash || 'PENDING');
 
       const transaction: SwapTransaction = {
         id: transactionId,
@@ -140,14 +171,25 @@ export class SwapOrchestrator {
         costBasisUSD,
         gasFeesUSD: 0,
         effectiveRate: parseFloat(result.amountOut || route.amountOut) / swapAmount,
-        txHash: result.txHash || 'PENDING',
+        txHash: primaryTxHash,
         status: result.success ? 'completed' : 'failed',
-        route,
+        chainTransactions: result.chainTransactions || [],
+        // Don't store route - it contains circular HTTP objects
       };
 
       await this.transactionLogger.logTransaction(transaction);
 
       const message = `Swap completed: ${this.walletManager.formatAmount(swapAmount.toString())} KYVE → ${this.walletManager.formatAmount(transaction.toAmount)} USDC (Cost basis: $${costBasisUSD.toFixed(2)})`;
+
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🎉 SWAP SUCCESSFUL!');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`✅ Sent: ${this.walletManager.formatAmount(swapAmount.toString())} KYVE`);
+      console.log(`✅ Received: ${this.walletManager.formatAmount(transaction.toAmount)} USDC`);
+      console.log(`💰 Cost Basis: $${costBasisUSD.toFixed(2)}`);
+      console.log(`🔗 TX Hash: ${transaction.txHash}`);
+      console.log(`📍 Destination: ${swapConfig.destAddress}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
       logSwap(message, { transaction });
       await this.notificationService.sendNotification('success', message, transaction);
@@ -175,7 +217,9 @@ export class SwapOrchestrator {
 
       await this.transactionLogger.logTransaction(transaction);
 
-      logger.error('Swap failed:', error);
+      // Log error to console to avoid circular JSON issues
+      console.error('Swap failed - actual error:', error);
+      logger.error(`Swap failed: ${String(error.message || error)}`);
       await this.notificationService.sendNotification(
         'error',
         `Swap failed: ${error.message}`,
@@ -201,7 +245,8 @@ export class SwapOrchestrator {
       isRunning: this.isRunning,
       walletAddresses: {
         kyve: this.walletManager.getKyveAddress(),
-        noble: this.walletManager.getNobleAddress(),
+        ethereum: this.walletManager.getEthereumAddress(),
+        base: this.walletManager.getBaseAddress(),
       },
       balances: {
         kyve: balances.kyve ? this.walletManager.formatAmount(balances.kyve.amount) : '0',
@@ -209,10 +254,14 @@ export class SwapOrchestrator {
       },
       statistics: stats,
       config: {
-        minSwapAmount: swapConfig.minSwapAmount,
+        minSwapAmountUSD: swapConfig.minSwapAmountUSD,
+        maxSwapAmountUSD: swapConfig.maxSwapAmountUSD,
         maxSlippage: swapConfig.maxSlippage,
         schedule: swapConfig.schedule,
         dryRun: swapConfig.dryRun,
+        timeoutMinutes: swapConfig.timeoutMinutes,
+        destination: swapConfig.destChainId === '8453' ? 'Base L2' : 'Ethereum L1',
+        destinationAddress: swapConfig.destAddress,
       },
     };
   }
