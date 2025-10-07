@@ -1,0 +1,46 @@
+{
+  "name": "kyve-swapper",
+  "version": "1.0.0",
+  "description": "Automated KYVE to USDC swapping bot using Skip API",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit",
+    "export-csv": "tsx src/utils/exportTransactions.ts"
+  },
+  "keywords": ["kyve", "cosmos", "skip", "swap", "crypto"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@cosmjs/amino": "^0.32.2",
+    "@cosmjs/crypto": "^0.32.2",
+    "@cosmjs/encoding": "^0.32.2",
+    "@cosmjs/proto-signing": "^0.32.2",
+    "@cosmjs/stargate": "^0.32.2",
+    "@skip-go/client": "^0.10.0",
+    "axios": "^1.6.7",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.20",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^9.0.8",
+    "@typescript-eslint/eslint-plugin": "^7.0.2",
+    "@typescript-eslint/parser": "^7.0.2",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}
