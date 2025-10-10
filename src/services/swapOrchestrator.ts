@@ -115,7 +115,9 @@ export class SwapOrchestrator {
       });
 
       console.log('🔍 Finding optimal route...');
-      const route = await this.skipService.getRoute(swapAmount.toString());
+      // Round to integer to avoid precision issues
+      const roundedAmount = Math.floor(swapAmount).toString();
+      const route = await this.skipService.getRoute(roundedAmount);
       console.log('✅ Route found!\n');
 
       const estimatedOut = parseFloat(route.amountOut);
